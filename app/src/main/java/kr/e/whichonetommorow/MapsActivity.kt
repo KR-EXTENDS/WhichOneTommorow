@@ -1,8 +1,14 @@
 package kr.e.whichonetommorow
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.location.Location
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
 
@@ -10,24 +16,68 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Marker
-import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.activity_maps.*
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
+
+    companion object {
+        private const val REQUEST_LOCATION_PERMISSION_CODE = 1
+    }
+
     private lateinit var mMap: GoogleMap
     private lateinit var mMapsViewModel: MapsViewModel
+    private lateinit var mLocationViewModel: LocationViewModel
     private var mMarker: Marker? = null
+    private var mCircle: Circle? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_maps)
+        if (isLocationPermission()) {
+            // パーミッションダイアログ表示
+            ActivityCompat.requestPermissions(
+                this
+                , arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                , REQUEST_LOCATION_PERMISSION_CODE
+            )
+        } else {
+            // 許可済み
+            init()
+        }
+    }
+
+    /**
+     * 位置情報のパーミッションが下りているか判定
+     * @return true：許可済
+     */
+    private fun isLocationPermission(): Boolean {
+        return PackageManager.PERMISSION_GRANTED != ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+          &&   PackageManager.PERMISSION_GRANTED != ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            REQUEST_LOCATION_PERMISSION_CODE -> {
+                if (PackageManager.PERMISSION_GRANTED == grantResults[0] && PackageManager.PERMISSION_GRANTED == grantResults[1]) {
+                    init()
+                }
+            }
+        }
+    }
+
+    /**
+     * 初期化
+     */
+    private fun init() {
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
         mMapsViewModel = ViewModelProviders.of(this).get(MapsViewModel::class.java)
+        mLocationViewModel = ViewModelProviders.of(this).get(LocationViewModel::class.java)
+        lifecycle.addObserver(mLocationViewModel)
         start_btn.setOnClickListener { mMapsViewModel.startRandomLatLng() }
         stop_btn.setOnClickListener {
             mMapsViewModel.stopRandomLatLng()
@@ -62,10 +112,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
      * LiveData監視
      */
     private fun subscribe() {
-        val latLngObserver: Observer<LatLng> = Observer{ t ->
+        val latLngObserver: Observer<LatLng> = Observer { t ->
             mMarker = mMap.addMarker(markerInit(t))
         }
+        val locationObserver: Observer<Location> = Observer {t ->
+            mCircle = mMap.addCircle(circleInit(t))
+        }
         mMapsViewModel.mMarkerLatLng.observe(this, latLngObserver)
+        mLocationViewModel.mLocation.observe(this, locationObserver)
     }
 
     /**
@@ -78,6 +132,22 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         return MarkerOptions().apply {
             position(latLng)
             title("MARKER")
+        }
+    }
+
+    /**
+     * CircleOptions初期化
+     * @param location Location
+     * @return CircleOptions
+     */
+    private fun circleInit(location: Location): CircleOptions {
+        mCircle?.remove()
+        return CircleOptions().apply {
+            center(LatLng(location.latitude, location.longitude))
+            // 描画円の半径 = 5.0m * (最大ズームレベル + 1.0 - 現在のズームレベル)
+            radius(5.0 * (mMap.maxZoomLevel + 1.0f - mMap.cameraPosition.zoom))
+            strokeColor(Color.BLUE)
+            fillColor(Color.BLUE)
         }
     }
 

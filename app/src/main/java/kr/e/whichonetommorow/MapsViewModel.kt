@@ -24,8 +24,8 @@ class MapsViewModel(application: Application) : AndroidViewModel(Application()) 
         private const val LAT_DEFAULT: Double = 35.41
         /** マップ初期表示経度：東京(東経139.45)*/
         private const val LNG_DEFAULT: Double = 139.45
-        /** マップ初期ズーム倍率：5.0(日本列島が見れるぐらい) */
-        private const val ZOOM_DEFAULT = 5.0f
+        /** マップ初期ズーム倍率：7.0 */
+        private const val ZOOM_DEFAULT = 7.0f
         /** マーカー表示時ズーム倍率 */
         private const val ZOOM_MARKER = 10.0f
     }
@@ -34,7 +34,7 @@ class MapsViewModel(application: Application) : AndroidViewModel(Application()) 
     /** Map上マーカーの緯度経度 */
     var mMarkerLatLng = MutableLiveData<LatLng>()
         private set
-    /** Map上のズームレベル保持(初期値：10.0) */
+    /** Map上のズームレベル保持(初期値：ZOOM_DEFAULT) */
     var mZoomLevel = ZOOM_DEFAULT
     /** Map上の緯度経度(初期値：東京) */
     var mLatLng = LatLng(LAT_DEFAULT, LNG_DEFAULT)

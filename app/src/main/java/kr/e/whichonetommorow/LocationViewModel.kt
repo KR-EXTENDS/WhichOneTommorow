@@ -7,6 +7,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.*
 
@@ -23,21 +24,20 @@ class LocationViewModel(application: Application) : AndroidViewModel(Application
         mLocationManager = mContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         mLocationManager!!.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0F, mLocationListener)
         val lastLocation = mLocationManager!!.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-        // Javaから呼び出してるためnullチェック
-        if (this.mLocationListener != null) this.mLocationListener.onLocationChanged(lastLocation)
-        Toast.makeText(mContext, "addLocationListener", Toast.LENGTH_SHORT).show()
+        this.mLocationListener.onLocationChanged(lastLocation)
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
     fun removeLocationListener() {
         mLocationManager?.removeUpdates(this.mLocationListener)
         mLocationManager = null
-        Toast.makeText(mContext, "removeLocationListener", Toast.LENGTH_SHORT).show()
     }
 
     private inner class MyLocationListener : LocationListener {
 
         override fun onLocationChanged(p0: Location?) {
+            Log.d("LocationViewModel", "lat=${p0?.latitude} lng=${p0?.longitude}")
+            mLocation.value = p0
         }
 
         override fun onProviderEnabled(p0: String?) {
