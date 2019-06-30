@@ -49,8 +49,10 @@ class MapsViewModel(application: Application) : AndroidViewModel(Application()),
     private var mLocationManager: LocationManager? = null
     private val mLocationListener = MyLocationListener()
     private val mContext = application
-
+    /** 現在位置 */
     var mLocation = MutableLiveData<Location>()
+    /** 経路情報 */
+    var mRootInfo = MutableLiveData<MutableList<LatLng>>()
 
     init {
         // CSVファイル初期化
@@ -78,6 +80,20 @@ class MapsViewModel(application: Application) : AndroidViewModel(Application()),
         mTimer?.cancel()
         mTimer = null
         mZoomLevel = ZOOM_MARKER
+    }
+
+    fun doDirectionsApi() {
+        MainRepository.doDirectionsApi(
+            LatLng(mLocation.value!!.latitude, mLocation.value!!.longitude),
+            mMarkerLatLng.value!!,
+            mContext.getString(R.string.google_maps_key),
+            object : TaskListener {
+                override fun onComplete(list: MutableList<LatLng>?) {
+                    Log.d("onComplete", "")
+                    mRootInfo.postValue(list)
+                }
+            }
+        )
     }
 
     @SuppressLint("MissingPermission")

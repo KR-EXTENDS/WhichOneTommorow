@@ -1,6 +1,7 @@
 package kr.e.whichonetommorow
 
 import android.Manifest
+import android.app.ProgressDialog
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.location.Location
@@ -16,7 +17,6 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.activity_maps.*
-import kotlinx.coroutines.Deferred
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -30,13 +30,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMapsViewModel: MapsViewModel
     private var mMarker: Marker? = null
     private var mCircle: Circle? = null
+    private var mPolyline: Polyline? = null
+    // TODO ProgressDialogは非推奨
+    private var mProgressDialog: ProgressDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_maps)
         if (isLocationPermission()) {
             // パーミッションダイアログ表示
-            if(!isShowPermissionDialog) {
+            if (!isShowPermissionDialog) {
                 ActivityCompat.requestPermissions(
                     this
                     , arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -55,8 +58,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
      * @return true：許可済
      */
     private fun isLocationPermission(): Boolean {
-        return PackageManager.PERMISSION_GRANTED != ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-          &&   PackageManager.PERMISSION_GRANTED != ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+        return PackageManager.PERMISSION_GRANTED != ActivityCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+                && PackageManager.PERMISSION_GRANTED != ActivityCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -64,7 +73,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         when (requestCode) {
             REQUEST_LOCATION_PERMISSION_CODE -> {
                 isShowPermissionDialog = false
-                if(grantResults.size == 2) {
+                if (grantResults.size == 2) {
                     if (PackageManager.PERMISSION_GRANTED == grantResults[0] && PackageManager.PERMISSION_GRANTED == grantResults[1]) {
                         init()
                     } else {
@@ -85,11 +94,18 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         mapFragment.getMapAsync(this)
         mMapsViewModel = ViewModelProviders.of(this).get(MapsViewModel::class.java)
         lifecycle.addObserver(mMapsViewModel)
-        start_btn.setOnClickListener { mMapsViewModel.startRandomLatLng() }
+        start_btn.setOnClickListener {
+            mPolyline?.remove()
+            mMapsViewModel.startRandomLatLng()
+        }
         stop_btn.setOnClickListener {
             mMapsViewModel.stopRandomLatLng()
             // マーカーがあるところにカメラ移動
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mMarker!!.position, mMapsViewModel.mZoomLevel))
+            // 経路情報検索
+            if (null == mProgressDialog) mProgressDialog = ProgressDialog(this)
+            mProgressDialog!!.show()
+            mMapsViewModel.doDirectionsApi()
         }
     }
 
@@ -122,11 +138,19 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         val latLngObserver: Observer<LatLng> = Observer { t ->
             mMarker = mMap.addMarker(markerInit(t))
         }
-        val locationObserver: Observer<Location> = Observer {t ->
+        val locationObserver: Observer<Location> = Observer { t ->
             mCircle = mMap.addCircle(circleInit(t))
+        }
+        val rootObserver: Observer<MutableList<LatLng>> = Observer { t ->
+            mPolyline?.remove()
+            mPolyline = mMap.addPolyline(PolylineOptions().apply {
+                addAll(t)
+            })
+            mProgressDialog?.dismiss()
         }
         mMapsViewModel.mMarkerLatLng.observe(this, latLngObserver)
         mMapsViewModel.mLocation.observe(this, locationObserver)
+        mMapsViewModel.mRootInfo.observe(this, rootObserver)
     }
 
     /**
