@@ -1,25 +1,26 @@
 package kr.e.whichonetommorow
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.location.Location
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
-
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
 import kotlinx.android.synthetic.main.activity_maps.*
+import kotlinx.coroutines.Deferred
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
+
+    var isShowPermissionDialog: Boolean = false
 
     companion object {
         private const val REQUEST_LOCATION_PERMISSION_CODE = 1
@@ -27,7 +28,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var mMap: GoogleMap
     private lateinit var mMapsViewModel: MapsViewModel
-    private lateinit var mLocationViewModel: LocationViewModel
     private var mMarker: Marker? = null
     private var mCircle: Circle? = null
 
@@ -36,11 +36,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         setContentView(R.layout.activity_maps)
         if (isLocationPermission()) {
             // パーミッションダイアログ表示
-            ActivityCompat.requestPermissions(
-                this
-                , arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-                , REQUEST_LOCATION_PERMISSION_CODE
-            )
+            if(!isShowPermissionDialog) {
+                ActivityCompat.requestPermissions(
+                    this
+                    , arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                    , REQUEST_LOCATION_PERMISSION_CODE
+                )
+            }
+            isShowPermissionDialog = true
         } else {
             // 許可済み
             init()
@@ -60,8 +63,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
             REQUEST_LOCATION_PERMISSION_CODE -> {
-                if (PackageManager.PERMISSION_GRANTED == grantResults[0] && PackageManager.PERMISSION_GRANTED == grantResults[1]) {
-                    init()
+                isShowPermissionDialog = false
+                if(grantResults.size == 2) {
+                    if (PackageManager.PERMISSION_GRANTED == grantResults[0] && PackageManager.PERMISSION_GRANTED == grantResults[1]) {
+                        init()
+                    } else {
+                        finish()
+                    }
                 }
             }
         }
@@ -76,8 +84,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
         mMapsViewModel = ViewModelProviders.of(this).get(MapsViewModel::class.java)
-        mLocationViewModel = ViewModelProviders.of(this).get(LocationViewModel::class.java)
-        lifecycle.addObserver(mLocationViewModel)
+        lifecycle.addObserver(mMapsViewModel)
         start_btn.setOnClickListener { mMapsViewModel.startRandomLatLng() }
         stop_btn.setOnClickListener {
             mMapsViewModel.stopRandomLatLng()
@@ -119,7 +126,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             mCircle = mMap.addCircle(circleInit(t))
         }
         mMapsViewModel.mMarkerLatLng.observe(this, latLngObserver)
-        mLocationViewModel.mLocation.observe(this, locationObserver)
+        mMapsViewModel.mLocation.observe(this, locationObserver)
     }
 
     /**
