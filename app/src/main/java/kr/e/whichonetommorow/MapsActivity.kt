@@ -20,7 +20,7 @@ import kotlinx.android.synthetic.main.activity_maps.*
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
-    var isShowPermissionDialog: Boolean = false
+    private var isShowPermissionDialog: Boolean = false
 
     companion object {
         private const val REQUEST_LOCATION_PERMISSION_CODE = 1
@@ -38,7 +38,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_maps)
         if (isLocationPermission()) {
-            // パーミッションダイアログ表示
+            // パーミッションダイアログ表示(表示済みの場合はなにもしない)
             if (!isShowPermissionDialog) {
                 ActivityCompat.requestPermissions(
                     this
@@ -77,6 +77,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                     if (PackageManager.PERMISSION_GRANTED == grantResults[0] && PackageManager.PERMISSION_GRANTED == grantResults[1]) {
                         init()
                     } else {
+                        // パーミッションが下りなかった場合はアプリを終了する
                         finish()
                     }
                 }
@@ -99,12 +100,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             mMapsViewModel.startRandomLatLng()
         }
         stop_btn.setOnClickListener {
-            mMapsViewModel.stopRandomLatLng()
+            if (!mMapsViewModel.stopRandomLatLng()) return@setOnClickListener
             // マーカーがあるところにカメラ移動
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mMarker!!.position, mMapsViewModel.mZoomLevel))
             // 経路情報検索
             if (null == mProgressDialog) mProgressDialog = ProgressDialog(this)
-            mProgressDialog!!.show()
+            mProgressDialog?.show()
             mMapsViewModel.doDirectionsApi()
         }
     }
@@ -136,12 +137,17 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
      */
     private fun subscribe() {
         val latLngObserver: Observer<LatLng> = Observer { t ->
+            // マーカーの位置を更新
+            mMarker?.remove()
             mMarker = mMap.addMarker(markerInit(t))
         }
         val locationObserver: Observer<Location> = Observer { t ->
+            // 現在地のサークル更新
+            mCircle?.remove()
             mCircle = mMap.addCircle(circleInit(t))
         }
         val rootObserver: Observer<MutableList<LatLng>> = Observer { t ->
+            // ルート情報更新
             mPolyline?.remove()
             mPolyline = mMap.addPolyline(PolylineOptions().apply {
                 addAll(t)
@@ -158,12 +164,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
      * @param latLng 緯度経度
      * @return MarkerOptions
      */
-    private fun markerInit(latLng: LatLng): MarkerOptions {
-        mMarker?.remove()
-        return MarkerOptions().apply {
-            position(latLng)
-            title("MARKER")
-        }
+    private fun markerInit(latLng: LatLng): MarkerOptions = MarkerOptions().apply {
+        position(latLng)
+        title("MARKER")
     }
 
     /**
@@ -171,15 +174,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
      * @param location Location
      * @return CircleOptions
      */
-    private fun circleInit(location: Location): CircleOptions {
-        mCircle?.remove()
-        return CircleOptions().apply {
-            center(LatLng(location.latitude, location.longitude))
-            // 描画円の半径 = 5.0m * (最大ズームレベル + 1.0 - 現在のズームレベル)
-            radius(5.0 * (mMap.maxZoomLevel + 1.0f - mMap.cameraPosition.zoom))
-            strokeColor(Color.BLUE)
-            fillColor(Color.BLUE)
-        }
+    private fun circleInit(location: Location): CircleOptions = CircleOptions().apply {
+        center(LatLng(location.latitude, location.longitude))
+        // 描画円の半径 = 5.0m * (最大ズームレベル + 1.0 - 現在のズームレベル)
+        radius(5.0 * (mMap.maxZoomLevel + 1.0f - mMap.cameraPosition.zoom))
+        strokeColor(Color.BLUE)
+        fillColor(Color.BLUE)
     }
 
 }
