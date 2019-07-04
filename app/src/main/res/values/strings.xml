@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">WhichOneTommorow</string>
-    <string name="title_activity_maps">Map</string>
+    <string name="app_name">WhichOneTomorrow</string>
+    <string name="title_activity_maps">WhichOneTomorrow</string>
 </resources>
